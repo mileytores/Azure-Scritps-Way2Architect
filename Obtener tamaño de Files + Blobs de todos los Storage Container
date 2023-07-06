@@ -1,0 +1,67 @@
+# Solicitar el ID de la suscripción
+$subscriptionId = Read-Host "Ingrese el ID de la suscripción de Azure"
+
+# Obtener todos los Storage Accounts en la suscripción especificada
+$storageAccounts = Get-AzStorageAccount | Where-Object { $_.Id -like "/subscriptions/$subscriptionId/resourceGroups/*/providers/Microsoft.Storage/storageAccounts/*" }
+
+# Recorrer cada Storage Account y obtener sus contenedores y archivos
+foreach ($storageAccount in $storageAccounts) {
+    $storageAccountName = $storageAccount.StorageAccountName
+    $resourceGroupName = $storageAccount.ResourceGroupName
+
+    $storageAccountKey = (Get-AzStorageAccountKey -ResourceGroupName $resourceGroupName -AccountName $storageAccountName).Value[0]
+
+    # Conectarse a la cuenta de almacenamiento
+    $context = New-AzStorageContext -StorageAccountName $storageAccountName -StorageAccountKey $storageAccountKey
+
+    # Obtener todos los contenedores de la cuenta de almacenamiento
+    $containers = Get-AzStorageContainer -Context $context
+
+    # Recorrer cada contenedor
+    foreach ($container in $containers) {
+        $containerName = $container.Name
+
+        Write-Host "Contenedor '$containerName' en la cuenta de almacenamiento '$storageAccountName' en el grupo de recursos '$resourceGroupName'"
+
+        # Obtener todos los blobs dentro del contenedor
+        $blobs = Get-AzStorageBlob -Container $containerName -Context $context
+
+        $totalSize = 0
+
+        # Calcular el tamaño total sumando el tamaño de cada blob
+        foreach ($blob in $blobs) {
+            $totalSize += $blob.Length
+        }
+
+        # Convertir el tamaño total a gigabytes y mebibytes
+        $totalSizeGB = [System.Convert]::ToString($totalSize/1GB) + " GB"
+        $totalSizeMiB = [System.Convert]::ToString($totalSize/1MB) + " MB"
+
+        Write-Host "Tamaño total del contenedor: $totalSizeGB ($totalSizeMiB)"
+        Write-Host "--------------------------------------"
+    }
+
+    # Obtener todos los archivos (Files) de la cuenta de almacenamiento
+    $fileShares = Get-AzStorageShare -Context $context
+
+    # Recorrer cada File Storage
+    foreach ($fileShare in $fileShares) {
+        $fileShareName = $fileShare.Name
+
+        Write-Host "File Storage '$fileShareName' en la cuenta de almacenamiento '$storageAccountName' en el grupo de recursos '$resourceGroupName'"
+
+        # Obtener los archivos dentro del File Storage
+        $files = Get-AzStorageFile -ShareName $fileShareName -Context $context
+
+        # Recorrer cada archivo
+        foreach ($file in $files) {
+            $fileName = $file.Name
+            $fileSize = $file.Length
+
+            Write-Host "Nombre del archivo: $fileName"
+            Write-Host "Tamaño del archivo: $fileSize GB"
+        }
+
+        Write-Host "--------------------------------------"
+    }
+}
